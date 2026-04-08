@@ -245,21 +245,50 @@ async function createReminder(
 		const cleanListName = listName.replace(/\"/g, '\\"');
 		const cleanNotes = notes ? notes.replace(/\"/g, '\\"') : "";
 
+		// Build properties for AppleScript
+		let propsStr = `{name:"${cleanName}"`;
+		if (cleanNotes) {
+			propsStr += `, body:"${cleanNotes}"`;
+		}
+		propsStr += `}`;
+
+		// Build due date setter (must be set after creation for reliability)
+		let dueDateScript = "";
+		if (dueDate) {
+			// Parse ISO date and format for AppleScript
+			const d = new Date(dueDate);
+			const month = d.getMonth() + 1;
+			const day = d.getDate();
+			const year = d.getFullYear();
+			const hours = d.getHours();
+			const minutes = d.getMinutes();
+			dueDateScript = `
+            set due date of newReminder to date "${month}/${day}/${year} ${hours}:${String(minutes).padStart(2, "0")}:00"
+            set remind me date of newReminder to date "${month}/${day}/${year} ${hours}:${String(minutes).padStart(2, "0")}:00"`;
+		}
+
 		const script = `
 tell application "Reminders"
     try
-        -- Use first available list (creating/finding lists can be slow)
-        set allLists to lists
-        if (count of allLists) > 0 then
-            set targetList to first item of allLists
-            set listName to name of targetList
-
-            -- Create a simple reminder with just name
-            set newReminder to make new reminder at targetList with properties {name:"${cleanName}"}
-            return "SUCCESS:" & listName
-        else
-            return "ERROR:No lists available"
+        -- Find or use target list
+        set targetList to missing value
+        try
+            set targetList to list "${cleanListName}"
+        end try
+        if targetList is missing value then
+            set allLists to lists
+            if (count of allLists) > 0 then
+                set targetList to first item of allLists
+            else
+                return "ERROR:No lists available"
+            end if
         end if
+        set listName to name of targetList
+
+        -- Create reminder with properties
+        set newReminder to make new reminder at targetList with properties ${propsStr}
+        ${dueDateScript}
+        return "SUCCESS:" & listName
     on error errorMessage
         return "ERROR:" & errorMessage
     end try

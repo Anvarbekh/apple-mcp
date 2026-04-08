@@ -1,0 +1,30 @@
+{
+	"name": "apple-mcp",
+	"version": "1.0.0",
+	"module": "index.ts",
+	"type": "module",
+	"description": "Apple MCP tools for Notes and Reminders integration",
+	"author": "anvar",
+	"license": "MIT",
+	"keywords": ["mcp", "apple", "notes", "reminders", "claude"],
+	"bin": {
+		"apple-mcp": "./dist/index.js"
+	},
+	"scripts": {
+		"dev": "bun run index.ts",
+		"build": "bun build index.ts --outfile=dist/index.js --target=node --minify",
+		"start": "node dist/index.js"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"@types/node": "^22.13.4"
+	},
+	"peerDependencies": {
+		"typescript": "^5.0.0"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.5.0",
+		"run-applescript": "^7.0.0",
+		"zod": "^3.24.2"
+	}
+}

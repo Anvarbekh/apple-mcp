@@ -252,19 +252,20 @@ async function createReminder(
 		}
 		propsStr += `}`;
 
-		// Build due date setter (must be set after creation for reliability)
+		// Build due date setter (locale-independent approach)
 		let dueDateScript = "";
 		if (dueDate) {
-			// Parse ISO date and format for AppleScript
 			const d = new Date(dueDate);
-			const month = d.getMonth() + 1;
-			const day = d.getDate();
-			const year = d.getFullYear();
-			const hours = d.getHours();
-			const minutes = d.getMinutes();
 			dueDateScript = `
-            set due date of newReminder to date "${month}/${day}/${year} ${hours}:${String(minutes).padStart(2, "0")}:00"
-            set remind me date of newReminder to date "${month}/${day}/${year} ${hours}:${String(minutes).padStart(2, "0")}:00"`;
+            set dueD to current date
+            set month of dueD to ${d.getMonth() + 1}
+            set day of dueD to ${d.getDate()}
+            set year of dueD to ${d.getFullYear()}
+            set hours of dueD to ${d.getHours()}
+            set minutes of dueD to ${d.getMinutes()}
+            set seconds of dueD to 0
+            set due date of newReminder to dueD
+            set remind me date of newReminder to dueD`;
 		}
 
 		const script = `

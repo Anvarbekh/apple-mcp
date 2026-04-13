@@ -554,6 +554,150 @@ end tell`;
 	}
 }
 
+interface UpdateReminderOptions {
+	/** Find reminder by exact name */
+	searchText: string;
+	/** Optional: restrict search to a specific list */
+	listName?: string;
+	/** New name for the reminder */
+	newName?: string;
+	/** New body/notes */
+	newBody?: string;
+	/** Priority: 0 = none, 1 = high, 5 = medium, 9 = low */
+	priority?: number;
+	/** New due date (ISO string) */
+	dueDate?: string;
+	/** Mark as completed or incomplete */
+	completed?: boolean;
+}
+
+interface UpdateReminderResult {
+	success: boolean;
+	message: string;
+	updated?: Partial<Reminder>;
+}
+
+/**
+ * Update an existing reminder's properties
+ * Finds the first reminder matching searchText (by name), then applies updates.
+ */
+async function updateReminder(options: UpdateReminderOptions): Promise<UpdateReminderResult> {
+	try {
+		const accessResult = await requestRemindersAccess();
+		if (!accessResult.hasAccess) {
+			throw new Error(accessResult.message);
+		}
+
+		if (!options.searchText || options.searchText.trim() === "") {
+			throw new Error("searchText is required to find the reminder to update");
+		}
+
+		const cleanSearch = options.searchText.replace(/"/g, '\\"');
+
+		// Build the list filter
+		let listFilter: string;
+		if (options.listName) {
+			const cleanList = options.listName.replace(/"/g, '\\"');
+			listFilter = `set targetLists to {list "${cleanList}"}`;
+		} else {
+			listFilter = `set targetLists to lists`;
+		}
+
+		// Build the property-setting lines
+		const setLines: string[] = [];
+		if (options.newName !== undefined) {
+			const clean = options.newName.replace(/"/g, '\\"');
+			setLines.push(`set name of targetReminder to "${clean}"`);
+		}
+		if (options.newBody !== undefined) {
+			const clean = options.newBody.replace(/"/g, '\\"');
+			setLines.push(`set body of targetReminder to "${clean}"`);
+		}
+		if (options.priority !== undefined) {
+			const p = Math.max(0, Math.min(9, Math.round(options.priority)));
+			setLines.push(`set priority of targetReminder to ${p}`);
+		}
+		if (options.completed !== undefined) {
+			setLines.push(`set completed of targetReminder to ${options.completed}`);
+		}
+		if (options.dueDate !== undefined) {
+			const d = new Date(options.dueDate);
+			setLines.push(`
+            set dueD to current date
+            set month of dueD to ${d.getMonth() + 1}
+            set day of dueD to ${d.getDate()}
+            set year of dueD to ${d.getFullYear()}
+            set hours of dueD to ${d.getHours()}
+            set minutes of dueD to ${d.getMinutes()}
+            set seconds of dueD to 0
+            set due date of targetReminder to dueD
+            set remind me date of targetReminder to dueD`);
+		}
+
+		if (setLines.length === 0) {
+			return { success: false, message: "No properties to update were provided." };
+		}
+
+		const setBlock = setLines.join("\n            ");
+
+		const script = `
+tell application "Reminders"
+    ${listFilter}
+    set targetReminder to missing value
+    set foundInList to ""
+
+    repeat with currentList in targetLists
+        set theReminders to reminders of currentList
+        repeat with r in theReminders
+            if name of r is "${cleanSearch}" then
+                set targetReminder to r
+                set foundInList to name of currentList
+                exit repeat
+            end if
+        end repeat
+        if targetReminder is not missing value then exit repeat
+    end repeat
+
+    if targetReminder is missing value then
+        return "ERROR:No reminder found matching \\"${cleanSearch}\\""
+    end if
+
+    try
+        ${setBlock}
+        return "SUCCESS:" & foundInList & "|||" & name of targetReminder
+    on error errorMessage
+        return "ERROR:" & errorMessage
+    end try
+end tell`;
+
+		const result = (await runAppleScript(script)) as string;
+
+		if (result && result.startsWith("SUCCESS:")) {
+			const parts = result.replace("SUCCESS:", "").split(FIELD_DELIM);
+			return {
+				success: true,
+				message: `Updated reminder "${parts[1] || options.searchText}" in list "${parts[0]}".`,
+				updated: {
+					name: options.newName || options.searchText,
+					listName: parts[0],
+					...(options.priority !== undefined && { priority: options.priority }),
+					...(options.completed !== undefined && { completed: options.completed }),
+					...(options.dueDate !== undefined && { dueDate: options.dueDate }),
+					...(options.newBody !== undefined && { body: options.newBody }),
+				},
+			};
+		} else {
+			const errMsg = result ? result.replace("ERROR:", "") : "Unknown error";
+			return { success: false, message: errMsg };
+		}
+	} catch (error) {
+		return {
+			success: false,
+			message: `Failed to update reminder: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+}
+
 export default {
 	getAllLists,
 	getAllReminders,
@@ -561,5 +705,6 @@ export default {
 	createReminder,
 	openReminder,
 	getRemindersFromListById,
+	updateReminder,
 	requestRemindersAccess,
 };

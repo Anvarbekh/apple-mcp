@@ -38,20 +38,20 @@ const NOTES_TOOL: Tool = {
 
 const REMINDERS_TOOL: Tool = {
 	name: "reminders",
-	description: "Search, create, and open reminders in Apple Reminders app",
+	description: "Search, create, update, and open reminders in Apple Reminders app",
 	inputSchema: {
 		type: "object",
 		properties: {
 			operation: {
 				type: "string",
 				description:
-					"Operation to perform: 'list', 'search', 'open', 'create', or 'listById'",
-				enum: ["list", "search", "open", "create", "listById"],
+					"Operation to perform: 'list', 'search', 'open', 'create', 'update', or 'listById'",
+				enum: ["list", "search", "open", "create", "update", "listById"],
 			},
 			searchText: {
 				type: "string",
 				description:
-					"Text to search for in reminders (required for search and open operations)",
+					"Text to search for in reminders (required for search, open, and update operations)",
 			},
 			name: {
 				type: "string",
@@ -61,7 +61,7 @@ const REMINDERS_TOOL: Tool = {
 			listName: {
 				type: "string",
 				description:
-					"Name of the list to create the reminder in (optional for create operation)",
+					"Name of the list to target (optional for create and update operations)",
 			},
 			listId: {
 				type: "string",
@@ -82,7 +82,28 @@ const REMINDERS_TOOL: Tool = {
 			dueDate: {
 				type: "string",
 				description:
-					"Due date for the reminder in ISO format (optional for create operation)",
+					"Due date for the reminder in ISO format (optional for create and update operations)",
+			},
+			newName: {
+				type: "string",
+				description:
+					"New name/title for the reminder (optional for update operation)",
+			},
+			newBody: {
+				type: "string",
+				description:
+					"New body/notes for the reminder (optional for update operation)",
+			},
+			priority: {
+				type: "number",
+				description:
+					"Priority level: 0 = none, 1 = high, 5 = medium, 9 = low (optional for update operation)",
+				enum: [0, 1, 5, 9],
+			},
+			completed: {
+				type: "boolean",
+				description:
+					"Mark the reminder as completed (true) or incomplete (false) (optional for update operation)",
 			},
 		},
 		required: ["operation"],

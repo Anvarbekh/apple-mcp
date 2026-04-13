@@ -238,6 +238,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 							reminders: results,
 							isError: false,
 						};
+					} else if (operation === "update") {
+						const { searchText, listName, newName, newBody, priority, dueDate, completed } = args;
+						const result = await remindersModule.updateReminder({
+							searchText: searchText!,
+							listName,
+							newName,
+							newBody,
+							priority,
+							dueDate,
+							completed,
+						});
+						return {
+							content: [
+								{
+									type: "text",
+									text: result.message,
+								},
+							],
+							...result,
+							isError: !result.success,
+						};
 					}
 
 					return {
@@ -343,7 +364,7 @@ function isNotesArgs(args: unknown): args is {
 }
 
 function isRemindersArgs(args: unknown): args is {
-	operation: "list" | "search" | "open" | "create" | "listById";
+	operation: "list" | "search" | "open" | "create" | "update" | "listById";
 	searchText?: string;
 	name?: string;
 	listName?: string;
@@ -351,16 +372,20 @@ function isRemindersArgs(args: unknown): args is {
 	props?: string[];
 	notes?: string;
 	dueDate?: string;
+	newName?: string;
+	newBody?: string;
+	priority?: number;
+	completed?: boolean;
 } {
 	if (typeof args !== "object" || args === null) return false;
 
 	const { operation } = args as any;
 	if (typeof operation !== "string") return false;
-	if (!["list", "search", "open", "create", "listById"].includes(operation))
+	if (!["list", "search", "open", "create", "update", "listById"].includes(operation))
 		return false;
 
 	if (
-		(operation === "search" || operation === "open") &&
+		(operation === "search" || operation === "open" || operation === "update") &&
 		(typeof (args as any).searchText !== "string" ||
 			(args as any).searchText === "")
 	)

@@ -38,15 +38,15 @@ const NOTES_TOOL: Tool = {
 
 const REMINDERS_TOOL: Tool = {
 	name: "reminders",
-	description: "Search, create, update, and open reminders in Apple Reminders app",
+	description: "Search, create (with optional image attachment), update, and open reminders in Apple Reminders app",
 	inputSchema: {
 		type: "object",
 		properties: {
 			operation: {
 				type: "string",
 				description:
-					"Operation to perform: 'list', 'search', 'open', 'create', 'update', or 'listById'",
-				enum: ["list", "search", "open", "create", "update", "listById"],
+					"Operation to perform: 'list', 'search', 'open', 'create', 'createWithImage', 'update', or 'listById'",
+				enum: ["list", "search", "open", "create", "createWithImage", "update", "listById"],
 			},
 			searchText: {
 				type: "string",
@@ -104,6 +104,11 @@ const REMINDERS_TOOL: Tool = {
 				type: "boolean",
 				description:
 					"Mark the reminder as completed (true) or incomplete (false) (optional for update operation)",
+			},
+			imagePath: {
+				type: "string",
+				description:
+					"Absolute path to an image file to attach to the reminder (required for createWithImage operation). Supported formats: jpg, png, heic, gif, webp, tiff, bmp",
 			},
 		},
 		required: ["operation"],

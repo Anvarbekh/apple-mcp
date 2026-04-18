@@ -1,4 +1,10 @@
 import { runAppleScript } from "run-applescript";
+import {
+	runImageReminderShortcut,
+	validateImagePath,
+	checkShortcutExists,
+	SHORTCUT_NAME,
+} from "./shortcuts";
 
 // Configuration
 const CONFIG = {
@@ -698,11 +704,100 @@ end tell`;
 	}
 }
 
+/**
+ * Create a reminder with an image attachment.
+ *
+ * Uses macOS Shortcuts to attach the image. Falls back to creating a
+ * regular reminder with the image path embedded in the notes field if
+ * the required Shortcut is not installed.
+ *
+ * @param name Name of the reminder
+ * @param imagePath Absolute path to the image file
+ * @param listName Target reminder list (default: "Reminders")
+ * @param notes Optional additional notes
+ * @param dueDate Optional due date (ISO string)
+ * @returns Result with success status, message, and whether fallback was used
+ */
+async function createReminderWithImage(
+	name: string,
+	imagePath: string,
+	listName?: string,
+	notes?: string,
+	dueDate?: string,
+): Promise<{
+	success: boolean;
+	message: string;
+	usedFallback: boolean;
+	reminder?: Reminder;
+}> {
+	// Validate the image path first
+	const validation = await validateImagePath(imagePath);
+	if (!validation.valid) {
+		return { success: false, message: validation.error!, usedFallback: false };
+	}
+
+	// Try the Shortcuts approach first
+	const shortcutExists = await checkShortcutExists(SHORTCUT_NAME);
+
+	if (shortcutExists) {
+		const result = await runImageReminderShortcut({
+			name,
+			imagePath,
+			listName,
+			notes,
+			dueDate,
+		});
+
+		if (result.success) {
+			return {
+				success: true,
+				message: result.message,
+				usedFallback: false,
+				reminder: {
+					name,
+					id: "created-via-shortcut",
+					body: notes || "",
+					completed: false,
+					dueDate: dueDate || null,
+					listName: listName || "Reminders",
+				},
+			};
+		}
+
+		// If shortcut failed, fall through to fallback
+		console.error(`Shortcut failed, using fallback: ${result.message}`);
+	}
+
+	// Fallback: create a regular reminder with the image path in notes
+	const fallbackNotes = notes
+		? `${notes}\n\n📎 Image: file://${imagePath}`
+		: `📎 Image: file://${imagePath}`;
+
+	try {
+		const reminder = await createReminder(name, listName, fallbackNotes, dueDate);
+		return {
+			success: true,
+			message: shortcutExists
+				? `Created reminder "${name}" with image path in notes (shortcut failed, used fallback).`
+				: `Created reminder "${name}" with image path in notes. To enable native image attachments, create the "${SHORTCUT_NAME}" shortcut in the Shortcuts app.`,
+			usedFallback: true,
+			reminder,
+		};
+	} catch (error) {
+		return {
+			success: false,
+			message: `Failed to create reminder: ${error instanceof Error ? error.message : String(error)}`,
+			usedFallback: true,
+		};
+	}
+}
+
 export default {
 	getAllLists,
 	getAllReminders,
 	searchReminders,
 	createReminder,
+	createReminderWithImage,
 	openReminder,
 	getRemindersFromListById,
 	updateReminder,

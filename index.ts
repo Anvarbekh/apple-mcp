@@ -219,6 +219,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 							reminder: result,
 							isError: false,
 						};
+					} else if (operation === "createWithImage") {
+						const { name, imagePath, listName, notes, dueDate } = args;
+						if (!name || !imagePath) {
+							throw new Error(
+								"Name and imagePath are required for createWithImage operation",
+							);
+						}
+						const result = await remindersModule.createReminderWithImage(
+							name,
+							imagePath,
+							listName,
+							notes,
+							dueDate,
+						);
+						return {
+							content: [
+								{
+									type: "text",
+									text: result.message,
+								},
+							],
+							success: result.success,
+							usedFallback: result.usedFallback,
+							reminder: result.reminder,
+							isError: !result.success,
+						};
 					} else if (operation === "listById") {
 						const { listId, props } = args;
 						const results = await remindersModule.getRemindersFromListById(
@@ -364,7 +390,7 @@ function isNotesArgs(args: unknown): args is {
 }
 
 function isRemindersArgs(args: unknown): args is {
-	operation: "list" | "search" | "open" | "create" | "update" | "listById";
+	operation: "list" | "search" | "open" | "create" | "createWithImage" | "update" | "listById";
 	searchText?: string;
 	name?: string;
 	listName?: string;
@@ -376,12 +402,13 @@ function isRemindersArgs(args: unknown): args is {
 	newBody?: string;
 	priority?: number;
 	completed?: boolean;
+	imagePath?: string;
 } {
 	if (typeof args !== "object" || args === null) return false;
 
 	const { operation } = args as any;
 	if (typeof operation !== "string") return false;
-	if (!["list", "search", "open", "create", "update", "listById"].includes(operation))
+	if (!["list", "search", "open", "create", "createWithImage", "update", "listById"].includes(operation))
 		return false;
 
 	if (
@@ -394,6 +421,13 @@ function isRemindersArgs(args: unknown): args is {
 	if (
 		operation === "create" &&
 		(typeof (args as any).name !== "string" || (args as any).name === "")
+	)
+		return false;
+
+	if (
+		operation === "createWithImage" &&
+		((typeof (args as any).name !== "string" || (args as any).name === "") ||
+			(typeof (args as any).imagePath !== "string" || (args as any).imagePath === ""))
 	)
 		return false;
 

@@ -3,6 +3,9 @@ import {
 	runImageReminderShortcut,
 	validateImagePath,
 	checkShortcutExists,
+	clipboardHasImage,
+	saveClipboardImage,
+	cleanupTempImage,
 	SHORTCUT_NAME,
 } from "./shortcuts";
 
@@ -707,20 +710,23 @@ end tell`;
 /**
  * Create a reminder with an image attachment.
  *
- * Uses macOS Shortcuts to attach the image. Falls back to creating a
- * regular reminder with the image path embedded in the notes field if
- * the required Shortcut is not installed.
+ * Image source (in priority order):
+ * 1. If `imagePath` is provided → use that file
+ * 2. Otherwise → grab the image from the macOS clipboard
+ *
+ * Attachment method:
+ * 1. If the "Add Image Reminder" Shortcut is installed → native attachment
+ * 2. Otherwise → fallback with file:// link in notes
  *
  * @param name Name of the reminder
- * @param imagePath Absolute path to the image file
+ * @param imagePath Optional absolute path to an image file (defaults to clipboard)
  * @param listName Target reminder list (default: "Reminders")
  * @param notes Optional additional notes
  * @param dueDate Optional due date (ISO string)
- * @returns Result with success status, message, and whether fallback was used
  */
 async function createReminderWithImage(
 	name: string,
-	imagePath: string,
+	imagePath?: string,
 	listName?: string,
 	notes?: string,
 	dueDate?: string,
@@ -728,31 +734,66 @@ async function createReminderWithImage(
 	success: boolean;
 	message: string;
 	usedFallback: boolean;
+	imageSource: "file" | "clipboard";
 	reminder?: Reminder;
 }> {
-	// Validate the image path first
-	const validation = await validateImagePath(imagePath);
-	if (!validation.valid) {
-		return { success: false, message: validation.error!, usedFallback: false };
+	let resolvedImagePath: string;
+	let isTemp = false;
+	const imageSource: "file" | "clipboard" = imagePath ? "file" : "clipboard";
+
+	// ── Resolve the image ──────────────────────────────────────
+	if (imagePath) {
+		// User provided a file path
+		const validation = await validateImagePath(imagePath);
+		if (!validation.valid) {
+			return { success: false, message: validation.error!, usedFallback: false, imageSource };
+		}
+		resolvedImagePath = imagePath;
+	} else {
+		// Grab from clipboard
+		const hasImage = await clipboardHasImage();
+		if (!hasImage) {
+			return {
+				success: false,
+				message: "No image found on the clipboard. Copy an image first, then try again.",
+				usedFallback: false,
+				imageSource,
+			};
+		}
+
+		const clipResult = await saveClipboardImage();
+		if (!clipResult.success || !clipResult.path) {
+			return {
+				success: false,
+				message: clipResult.error || "Failed to save clipboard image.",
+				usedFallback: false,
+				imageSource,
+			};
+		}
+
+		resolvedImagePath = clipResult.path;
+		isTemp = true;
 	}
 
-	// Try the Shortcuts approach first
+	// ── Try Shortcuts approach ─────────────────────────────────
 	const shortcutExists = await checkShortcutExists(SHORTCUT_NAME);
 
 	if (shortcutExists) {
 		const result = await runImageReminderShortcut({
 			name,
-			imagePath,
+			imagePath: resolvedImagePath,
 			listName,
 			notes,
 			dueDate,
 		});
 
 		if (result.success) {
+			if (isTemp) await cleanupTempImage(resolvedImagePath);
 			return {
 				success: true,
 				message: result.message,
 				usedFallback: false,
+				imageSource,
 				reminder: {
 					name,
 					id: "created-via-shortcut",
@@ -764,30 +805,34 @@ async function createReminderWithImage(
 			};
 		}
 
-		// If shortcut failed, fall through to fallback
 		console.error(`Shortcut failed, using fallback: ${result.message}`);
 	}
 
-	// Fallback: create a regular reminder with the image path in notes
+	// ── Fallback: embed file:// link in notes ──────────────────
 	const fallbackNotes = notes
-		? `${notes}\n\n📎 Image: file://${imagePath}`
-		: `📎 Image: file://${imagePath}`;
+		? `${notes}\n\n📎 Image: file://${resolvedImagePath}`
+		: `📎 Image: file://${resolvedImagePath}`;
 
 	try {
 		const reminder = await createReminder(name, listName, fallbackNotes, dueDate);
+
+		// Don't clean up temp file when using fallback — the link needs the file to exist
 		return {
 			success: true,
 			message: shortcutExists
 				? `Created reminder "${name}" with image path in notes (shortcut failed, used fallback).`
 				: `Created reminder "${name}" with image path in notes. To enable native image attachments, create the "${SHORTCUT_NAME}" shortcut in the Shortcuts app.`,
 			usedFallback: true,
+			imageSource,
 			reminder,
 		};
 	} catch (error) {
+		if (isTemp) await cleanupTempImage(resolvedImagePath);
 		return {
 			success: false,
 			message: `Failed to create reminder: ${error instanceof Error ? error.message : String(error)}`,
 			usedFallback: true,
+			imageSource,
 		};
 	}
 }

@@ -35,49 +35,45 @@ macOS will prompt you to allow Automation access to **Notes** and **Reminders** 
 
 ## 🖼️ Image Attachments for Reminders
 
-Apple's AppleScript API does not support attaching images to reminders. To work around this, the MCP uses a **macOS Shortcut** as a bridge.
+You can attach images to reminders by **copying an image to your clipboard**, then asking Claude to create a reminder with it.
 
-### Setting up the Shortcut (one-time)
+### Quick usage
+
+1. **Copy** any image (⌘C from Preview, Finder, browser, screenshot, etc.)
+2. Tell Claude: *"Create a reminder called 'Save this receipt' with the image I just copied"*
+3. The MCP grabs the image from your clipboard and attaches it
+
+You can also provide a file path directly:
+> *"Create a reminder with the image at `/Users/me/Desktop/photo.jpg`"*
+
+### How it works under the hood
+
+```
+Copy image → Claude calls createWithImage → MCP reads clipboard → Shortcut attaches it
+```
+
+1. If no `imagePath` is given, the MCP extracts the image from the macOS **clipboard** (pasteboard) via JXA/NSPasteboard
+2. If the **"Add Image Reminder"** Shortcut is installed → creates a reminder with a **native image attachment**
+3. If the Shortcut is **not installed** → falls back to creating a reminder with a clickable `file://` link in the notes
+
+### Setting up the Shortcut (one-time, for native attachments)
+
+Without this Shortcut, images are saved as links in notes. With it, they become real attachments.
 
 1. Open the **Shortcuts** app on your Mac
 2. Click **+** to create a new shortcut
 3. Name it exactly: **`Add Image Reminder`**
 4. Configure it to receive **Images** as input
-5. Add the following actions in order:
+5. Add these actions:
 
    | # | Action | Configuration |
    |---|--------|---------------|
-   | 1 | **Run Shell Script** | Shell: `/bin/zsh`, Input: pass to stdin. Script: `echo "$REMINDER_META"` — this outputs the JSON metadata |
-   | 2 | **Get Text from Input** | Use the output from step 1 |
-   | 3 | **Get Dictionary from Input** | Parse the JSON text |
-   | 4 | **Add New Reminder** | Title: `Name` from dictionary, Notes: `notes` from dictionary, List: `listName` from dictionary, Image: **Shortcut Input** |
-
-   > **Simplified alternative**: If the above is complex, create a shortcut with just:
-   > 1. **Add New Reminder** — set the title from "Shortcut Input" name, and attach the image from input
-   > The metadata (list name, notes, due date) won't be passed, but the image will attach.
+   | 1 | **Run Shell Script** | Shell: `/bin/zsh`, Script: `echo "$REMINDER_META"` |
+   | 2 | **Get Dictionary from Input** | From the shell script output |
+   | 3 | **Add New Reminder** | Title: `Name` from dictionary, Notes: `notes` from dictionary, List: `listName` from dictionary, Image: **Shortcut Input** |
 
 6. Save the shortcut
-
-### How it works
-
-When you use the `createWithImage` operation:
-
-1. The MCP validates the image file exists and is a supported format
-2. If the **"Add Image Reminder"** shortcut is found → runs it with the image, creating a reminder with a native attachment
-3. If the shortcut is **not found** → falls back to creating a regular reminder with the image path as a clickable `file://` link in the notes
 
 ### Supported image formats
 
 `.jpg` `.jpeg` `.png` `.heic` `.heif` `.gif` `.webp` `.tiff` `.tif` `.bmp`
-
-### Usage example
-
-```json
-{
-  "operation": "createWithImage",
-  "name": "Receipt from lunch",
-  "imagePath": "/Users/you/Desktop/receipt.jpg",
-  "listName": "Expenses",
-  "notes": "Team lunch at Sushi Place"
-}
-```

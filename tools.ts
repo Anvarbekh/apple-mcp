@@ -38,7 +38,7 @@ const NOTES_TOOL: Tool = {
 
 const REMINDERS_TOOL: Tool = {
 	name: "reminders",
-	description: "Search, create (with optional image attachment), update, and open reminders in Apple Reminders app",
+	description: "Search, create (with optional image from clipboard or file), update, and open reminders in Apple Reminders app",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -108,7 +108,7 @@ const REMINDERS_TOOL: Tool = {
 			imagePath: {
 				type: "string",
 				description:
-					"Absolute path to an image file to attach to the reminder (required for createWithImage operation). Supported formats: jpg, png, heic, gif, webp, tiff, bmp",
+					"Absolute path to an image file (optional for createWithImage). If omitted, the image is grabbed from the macOS clipboard automatically. Supported formats: jpg, png, heic, gif, webp, tiff, bmp",
 			},
 		},
 		required: ["operation"],

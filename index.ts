@@ -221,14 +221,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 						};
 					} else if (operation === "createWithImage") {
 						const { name, imagePath, listName, notes, dueDate } = args;
-						if (!name || !imagePath) {
+						if (!name) {
 							throw new Error(
-								"Name and imagePath are required for createWithImage operation",
+								"Name is required for createWithImage operation",
 							);
 						}
 						const result = await remindersModule.createReminderWithImage(
 							name,
-							imagePath,
+							imagePath, // undefined = use clipboard
 							listName,
 							notes,
 							dueDate,
@@ -426,8 +426,7 @@ function isRemindersArgs(args: unknown): args is {
 
 	if (
 		operation === "createWithImage" &&
-		((typeof (args as any).name !== "string" || (args as any).name === "") ||
-			(typeof (args as any).imagePath !== "string" || (args as any).imagePath === ""))
+		(typeof (args as any).name !== "string" || (args as any).name === "")
 	)
 		return false;
 
